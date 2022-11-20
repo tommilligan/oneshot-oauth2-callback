@@ -18,9 +18,10 @@ pub enum Error {
     /// We heard a response from the identity server, stating the flow could not
     /// be completed.
     #[error("OAuth2 flow responded with a well-definied error")]
-    ErrorResponse { 
+    ErrorResponse {
         /// The standard OAuth2 error response.
-        response: BasicErrorResponse },
+        response: BasicErrorResponse,
+    },
 
     /// There was an error with our local server listening for the response.
     #[error("Internal error in listener")]
@@ -29,7 +30,7 @@ pub enum Error {
     /// A response was received but could not be parsed correctly.
     #[error("OAuth2 response was malformed or invalid")]
     InvalidResponse,
-    
+
     /// The listener did not receive a response before shutdown.
     #[error("No response received")]
     NoResponse,
