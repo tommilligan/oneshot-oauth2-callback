@@ -3,6 +3,14 @@ name = "oneshot-oauth2-callback"
 version = "0.1.0"
 edition = "2021"
 
+authors = ["Tom Milligan <code@tommilligan.net>"]
+description = "Easily receive an OAuth2 code grant callback at a local address."
+repository = "https://github.com/tommilligan/oneshot-oauth2-callback"
+
+license = "MIT"
+keywords = ["oauth2", "callback", "local", "cli", "webhook"]
+readme = "README.md"
+
 [dependencies]
 tokio = { version = "1", default_features = false, features = ["sync"] }
 serde = { version = "1", default_features = false, features = ["derive"] }
