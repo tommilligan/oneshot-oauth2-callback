@@ -25,5 +25,5 @@ jobs:
           override: true
       - name: Publish crate
         env:
-          CARGO_LOGIN_TOKEN: ${{ secrets.CARGO_LOGIN_TOKEN }}
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
         run: ./scripts/publish
