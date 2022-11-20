@@ -12,14 +12,25 @@ use thiserror::Error;
 use tokio::sync::oneshot::{channel, Sender};
 use tokio::sync::Mutex;
 
+/// Errors that may lead to the OAuth2 code grant not being successfully completed.
 #[derive(Error, Debug)]
 pub enum Error {
+    /// We heard a response from the identity server, stating the flow could not
+    /// be completed.
     #[error("OAuth2 flow responded with a well-definied error")]
-    ErrorResponse { response: BasicErrorResponse },
+    ErrorResponse { 
+        /// The standard OAuth2 error response.
+        response: BasicErrorResponse },
+
+    /// There was an error with our local server listening for the response.
     #[error("Internal error in listener")]
     Listener(hyper::Error),
+
+    /// A response was received but could not be parsed correctly.
     #[error("OAuth2 response was malformed or invalid")]
     InvalidResponse,
+    
+    /// The listener did not receive a response before shutdown.
     #[error("No response received")]
     NoResponse,
 }
@@ -33,6 +44,7 @@ struct State {
 
 type SharedState = Arc<Mutex<State>>;
 
+/// Listen at the given address for a single OAuth2 code grant callback.
 pub async fn oneshot(address: &std::net::SocketAddr) -> Result<CodeGrantResponse> {
     let (tx, rx) = channel::<()>();
     let state = Arc::new(Mutex::new(State {
