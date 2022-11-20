@@ -1,0 +1,11 @@
+[package]
+name = "local-oauth2-callback"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+tokio = { version = "1", default_features = false, features = ["sync"] }
+serde = { version = "1", default_features = false, features = ["derive"] }
+serde_urlencoded = "0.7"
+oauth2 = { version = "4", default_features = false }
+axum = { version = "0.5.17", default_features = false, features = ["http1"] }
