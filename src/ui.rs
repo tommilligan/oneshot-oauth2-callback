@@ -1,5 +1,5 @@
+use crate::response::{BasicErrorResponse, CodeGrantResponse};
 use std::borrow::Cow;
-use crate::response::{CodeGrantResponse, BasicErrorResponse};
 
 pub(crate) struct Headings<'a> {
     pub title: &'a str,
@@ -40,19 +40,6 @@ impl ToHeadings for BasicErrorResponse {
         Headings {
             title: "Login failed.",
             subheader,
-        }
-    }
-}
-
-impl<T, E> ToHeadings for Result<T, E>
-where
-    T: ToHeadings,
-    E: ToHeadings,
-{
-    fn to_headings(&self) -> Headings {
-        match self {
-            Ok(response) => response.to_headings(),
-            Err(response) => response.to_headings(),
         }
     }
 }

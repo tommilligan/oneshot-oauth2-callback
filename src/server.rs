@@ -1,24 +1,39 @@
+use crate::response::{BasicErrorResponse, CodeGrantResponse, CodeGrantResult};
+use crate::ui::{Headings, ToHeadings};
 use axum::{
     extract::{Extension, RawQuery},
     response::Html,
     routing::get,
     Router,
 };
-use tokio::sync::oneshot::{channel, Sender};
-use crate::response::{CodeGrantResult, CodeGrantResponse, BasicErrorResponse};
-use std::sync::Arc;
-use tokio::sync::Mutex;
 use serde::Deserialize;
-use crate::ui::{Headings, ToHeadings};
+use std::sync::Arc;
+use thiserror::Error;
+use tokio::sync::oneshot::{channel, Sender};
+use tokio::sync::Mutex;
+
+#[derive(Error, Debug)]
+pub enum Error {
+    #[error("OAuth2 flow responded with a well-definied error")]
+    ErrorResponse { response: BasicErrorResponse },
+    #[error("Internal error in listener")]
+    Listener(hyper::Error),
+    #[error("OAuth2 response was malformed or invalid")]
+    InvalidResponse,
+    #[error("No response received")]
+    NoResponse,
+}
+
+type Result<T> = std::result::Result<T, Error>;
 
 struct State {
     pub shutdown: Option<Sender<()>>,
-    pub code_grant_result: Option<CodeGrantResult>,
+    pub code_grant_result: Option<Result<CodeGrantResponse>>,
 }
 
 type SharedState = Arc<Mutex<State>>;
 
-pub async fn oneshot(address: &std::net::SocketAddr) -> CodeGrantResult {
+pub async fn oneshot(address: &std::net::SocketAddr) -> Result<CodeGrantResponse> {
     let (tx, rx) = channel::<()>();
     let state = Arc::new(Mutex::new(State {
         shutdown: Some(tx),
@@ -31,20 +46,16 @@ pub async fn oneshot(address: &std::net::SocketAddr) -> CodeGrantResult {
         .route("/oauth2/callback", get(oauth2_callback))
         .layer(Extension(state.clone()));
 
-
     axum::Server::bind(address)
         .serve(app.into_make_service())
         .with_graceful_shutdown(async {
             rx.await.ok();
         })
         .await
-        .unwrap();
+        .map_err(Error::Listener)?;
 
     let mut state = state.lock().await;
-    state
-        .code_grant_result
-        .take()
-        .expect("code_grant_result set")
+    state.code_grant_result.take().ok_or(Error::NoResponse)?
 }
 
 async fn root() -> &'static str {
@@ -55,12 +66,14 @@ async fn health() -> &'static str {
     "ok"
 }
 
-const INVALID_RESPONSE_HEADINGS: Headings<'static> = Headings::new("Login failed.", "Received invalid OAuth2 response.");
+const INVALID_RESPONSE_HEADINGS: Headings<'static> =
+    Headings::new("Login failed.", "Received invalid OAuth2 response.");
+const INTERNAL_ERROR_HEADINGS: Headings<'static> =
+    Headings::new("Login failed.", "Internal error receiving response.");
 
-async fn oauth2_callback(
-    Extension(state): Extension<SharedState>,
-    RawQuery(query): RawQuery,
-) -> Html<String> {
+fn parse_oauth2_response_query(query: Option<String>) -> Result<CodeGrantResponse> {
+    let query = query.ok_or(Error::InvalidResponse)?;
+
     /// Private implementation of `Result` so we can implement deserialize as an untagged enum.
     ///
     /// Once we've deserialized, translate to `Result` and use that.
@@ -80,17 +93,21 @@ async fn oauth2_callback(
         }
     }
 
-    let code_grant_result = if let Some(query) = query {
-        let code_grant_result: CodeGrantResultCustom = serde_urlencoded::from_str(&query).unwrap();
-        let code_grant_result: CodeGrantResult = code_grant_result.into();
-        Some(code_grant_result)
-    } else {
-        None
-    };
-    let headings = if let Some(ref code_grant_result) = code_grant_result {
-        code_grant_result.to_headings()
-    } else {
-        INVALID_RESPONSE_HEADINGS
+    let code_grant_result: CodeGrantResultCustom =
+        serde_urlencoded::from_str(&query).map_err(|_| Error::InvalidResponse)?;
+    CodeGrantResult::from(code_grant_result).map_err(|response| Error::ErrorResponse { response })
+}
+
+async fn oauth2_callback(
+    Extension(state): Extension<SharedState>,
+    RawQuery(query): RawQuery,
+) -> Html<String> {
+    let code_grant_result = parse_oauth2_response_query(query);
+    let headings = match &code_grant_result {
+        Ok(code_grant) => code_grant.to_headings(),
+        Err(Error::ErrorResponse { response }) => response.to_headings(),
+        Err(Error::InvalidResponse) => INVALID_RESPONSE_HEADINGS,
+        Err(_) => INTERNAL_ERROR_HEADINGS,
     };
 
     let html = format!(
@@ -111,7 +128,7 @@ async fn oauth2_callback(
         headings.title, headings.subheader
     );
     let mut state = state.lock().await;
-    state.code_grant_result = code_grant_result;
+    state.code_grant_result = Some(code_grant_result);
     if let Some(shutdown) = state.shutdown.take() {
         shutdown.send(()).expect("failed to send shutdown");
     }
