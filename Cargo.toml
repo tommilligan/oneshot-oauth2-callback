@@ -1,5 +1,5 @@
 [package]
-name = "local-oauth2-callback"
+name = "oneshot-oauth2-callback"
 version = "0.1.0"
 edition = "2021"
 
