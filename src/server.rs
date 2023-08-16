@@ -46,7 +46,7 @@ struct State {
 type SharedState = Arc<Mutex<State>>;
 
 /// Listen at the given address for a single OAuth2 code grant callback.
-pub async fn oneshot(address: &std::net::SocketAddr) -> Result<CodeGrantResponse> {
+pub async fn oneshot(address: &std::net::SocketAddr, path: &str) -> Result<CodeGrantResponse> {
     let (tx, rx) = channel::<()>();
     let state = Arc::new(Mutex::new(State {
         shutdown: Some(tx),
@@ -56,7 +56,7 @@ pub async fn oneshot(address: &std::net::SocketAddr) -> Result<CodeGrantResponse
     let app = Router::new()
         .route("/", get(root))
         .route("/health", get(health))
-        .route("/oauth2/callback", get(oauth2_callback))
+        .route(path, get(oauth2_callback))
         .layer(Extension(state.clone()));
 
     axum::Server::bind(address)
