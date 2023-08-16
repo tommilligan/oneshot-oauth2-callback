@@ -17,7 +17,7 @@ use tokio::sync::Mutex;
 pub enum Error {
     /// We heard a response from the identity server, stating the flow could not
     /// be completed.
-    #[error("OAuth2 flow responded with a well-definied error")]
+    #[error("OAuth2 flow responded with a well-defined error: {}", response.error())]
     ErrorResponse {
         /// The standard OAuth2 error response.
         response: BasicErrorResponse,
