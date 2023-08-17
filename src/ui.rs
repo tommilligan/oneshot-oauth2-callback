@@ -15,6 +15,28 @@ impl Headings<'static> {
     }
 }
 
+impl<'a> Headings<'a> {
+    pub fn html(&self) -> String {
+        format!(
+            r#"<html>
+        <body>
+            <div style="
+                width: 100%;
+                top: 50%;
+                margin-top: 100px;
+                text-align: center;
+                font-family: sans-serif;
+            ">
+                <h1>{}</h1>
+                <h2>{}</h2>
+            </div>
+        </body>
+    </html>"#,
+            self.title, self.subheader
+        )
+    }
+}
+
 pub(crate) trait ToHeadings {
     fn to_headings(&self) -> Headings<'_>;
 }
