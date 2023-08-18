@@ -1,6 +1,6 @@
 [package]
 name = "oneshot-oauth2-callback"
-version = "0.2.0"
+version = "0.2.1"
 edition = "2021"
 
 authors = ["Tom Milligan <code@tommilligan.net>"]
@@ -20,6 +20,7 @@ axum = { version = "0.5.17", default_features = false, features = ["http1"], opt
 thiserror = "1.0.37"
 hyper = { version = "0.14.23", optional = true }
 rouille = { version = "3.6.2", default_features = false, optional = true }
+log = "0.4.20"
 
 [features]
 default = ["async"]

@@ -25,7 +25,7 @@ pub enum Error {
 
 const INVALID_RESPONSE_HEADINGS: Headings<'static> =
     Headings::new("Login failed.", "Received invalid OAuth2 response.");
-const INTERNAL_ERROR_HEADINGS: Headings<'static> =
+pub(crate) const INTERNAL_ERROR_HEADINGS: Headings<'static> =
     Headings::new("Login failed.", "Internal error receiving response.");
 
 fn parse_oauth2_response_query(query: &str) -> Result<CodeGrantResponse, Error> {

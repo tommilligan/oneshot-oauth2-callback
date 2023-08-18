@@ -20,6 +20,10 @@ pub enum Error {
     Internal(#[from] Box<dyn std::error::Error + Send + Sync + 'static>),
 }
 
+#[derive(Error, Debug)]
+#[error("Shared state poisoned unexpectedly")]
+struct PoisonError;
+
 struct State {
     pub code_grant_result: Option<Result<CodeGrantResponse, server::Error>>,
 }
@@ -34,6 +38,8 @@ pub fn oneshot(address: &std::net::SocketAddr, path: &str) -> Result<CodeGrantRe
 
     let path = path.to_owned();
     let handler_state = state.clone();
+
+    log::debug!("Listening for oauth callback at http://{address}{path}");
     let server = Server::new(address, move |request| {
         router!(request,
             (GET) ["/"] => rouille::Response::text(server::PENDING_TEXT),
@@ -42,11 +48,13 @@ pub fn oneshot(address: &std::net::SocketAddr, path: &str) -> Result<CodeGrantRe
             _ => rouille::Response::empty_404()
         )
     })
-    .map_err(Error::Listener)?;
+    .map_err(Error::Internal)?;
 
     loop {
         server.poll_timeout(Duration::from_millis(100));
-        let mut state = state.lock().map_err(Error::Listener);
+        let mut state = state
+            .lock()
+            .map_err(|_| Error::Internal(Box::new(PoisonError)))?;
         if let Some(code_grant_result) = state.code_grant_result.take() {
             server.join();
             return Ok(code_grant_result?);
@@ -57,7 +65,15 @@ pub fn oneshot(address: &std::net::SocketAddr, path: &str) -> Result<CodeGrantRe
 fn oauth2_callback(request: &rouille::Request, state: &SharedState) -> rouille::Response {
     let (code_grant_result, html) = server::handle_oauth2_response(request.raw_query_string());
 
-    let mut state = state.lock().map_err(Error::Listener);
-    state.code_grant_result = Some(code_grant_result);
-    Response::html(html)
+    match state.lock() {
+        Ok(mut state) => {
+            state.code_grant_result = Some(code_grant_result);
+            Response::html(html)
+        }
+        // Only likely to happen if we're shutting down the server already, but handle nicely
+        Err(_) => {
+            log::error!("Failed to write to shared state");
+            Response::html(server::INTERNAL_ERROR_HEADINGS.html()).with_status_code(500)
+        }
+    }
 }

@@ -25,8 +25,8 @@ pub enum Error {
 }
 
 struct State {
-    pub shutdown: Option<Sender<()>>,
-    pub code_grant_result: Option<Result<CodeGrantResponse, server::Error>>,
+    shutdown: Option<Sender<()>>,
+    code_grant_result: Option<Result<CodeGrantResponse, server::Error>>,
 }
 
 type SharedState = Arc<Mutex<State>>;
@@ -48,6 +48,7 @@ pub async fn oneshot(
         .route(path, get(oauth2_callback))
         .layer(Extension(state.clone()));
 
+    log::debug!("Listening for oauth callback at http://{address}{path}");
     axum::Server::bind(address)
         .serve(app.into_make_service())
         .with_graceful_shutdown(async {
@@ -82,7 +83,10 @@ async fn oauth2_callback(
     let mut state = state.lock().await;
     state.code_grant_result = Some(code_grant_result);
     if let Some(shutdown) = state.shutdown.take() {
-        shutdown.send(()).expect("failed to send shutdown");
+        if let Err(_) = shutdown.send(()) {
+            log::error!("Failed to send shutdown event");
+            return Html(server::INTERNAL_ERROR_HEADINGS.html());
+        }
     }
     Html(html)
 }
