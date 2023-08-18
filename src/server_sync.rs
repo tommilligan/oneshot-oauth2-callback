@@ -11,14 +11,13 @@ use crate::server;
 /// Errors that may lead to the OAuth2 code grant not being successfully completed.
 #[derive(Error, Debug)]
 pub enum Error {
-    /// We heard a response from the identity server, stating the flow could not
-    /// be completed.
-    #[error("OAuth2 reponse error")]
+    /// We did not get a successful oauth response.
+    #[error("No successful oauth response received")]
     Response(#[from] server::Error),
 
     /// There was an error with our local server listening for the response.
     #[error("Internal error in listener")]
-    Listener(#[from] Box<dyn std::error::Error + Send + Sync + 'static>),
+    Internal(#[from] Box<dyn std::error::Error + Send + Sync + 'static>),
 }
 
 struct State {
@@ -47,7 +46,7 @@ pub fn oneshot(address: &std::net::SocketAddr, path: &str) -> Result<CodeGrantRe
 
     loop {
         server.poll_timeout(Duration::from_millis(100));
-        let mut state = state.lock().expect("mutex poisoned");
+        let mut state = state.lock().map_err(Error::Listener);
         if let Some(code_grant_result) = state.code_grant_result.take() {
             server.join();
             return Ok(code_grant_result?);
@@ -58,7 +57,7 @@ pub fn oneshot(address: &std::net::SocketAddr, path: &str) -> Result<CodeGrantRe
 fn oauth2_callback(request: &rouille::Request, state: &SharedState) -> rouille::Response {
     let (code_grant_result, html) = server::handle_oauth2_response(request.raw_query_string());
 
-    let mut state = state.lock().expect("mutex poisoned");
+    let mut state = state.lock().map_err(Error::Listener);
     state.code_grant_result = Some(code_grant_result);
     Response::html(html)
 }
